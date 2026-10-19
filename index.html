@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>🎙️ Speech → Text → Translate (Offline)</title>
+<style>
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 460px;
+    background: #fff;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  }
+
+  h1 {
+    font-size: 20px;
+    margin: 0 0 4px;
+    text-align: center;
+    color: #333;
+  }
+
+  .subtitle {
+    text-align: center;
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 18px;
+  }
+
+  h2 {
+    font-size: 12px;
+    margin: 0 0 6px;
+    color: #666;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .row label {
+    font-size: 13px;
+    color: #444;
+    font-weight: 500;
+  }
+
+  select {
+    flex: 1;
+    max-width: 220px;
+    margin-left: 10px;
+    padding: 7px 8px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    font-size: 13px;
+    background: #f9f9f9;
+    cursor: pointer;
+  }
+
+  .btn-group {
+    display: flex;
+    gap: 10px;
+    margin: 14px 0;
+  }
+
+  button {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  #startBtn { background: #22c55e; color: #fff; }
+  #startBtn:hover:not(:disabled) { background: #16a34a; }
+  #startBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  #stopBtn { background: #ef4444; color: #fff; }
+  #stopBtn:hover:not(:disabled) { background: #dc2626; }
+  #stopBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .card {
+    background: #f7f7fb;
+    border: 1px solid #e2e2ea;
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+
+  .output {
+    min-height: 44px;
+    font-size: 14px;
+    color: #222;
+    line-height: 1.5;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+  }
+
+  .output:empty::before {
+    content: "—";
+    color: #bbb;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 60px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+    margin-bottom: 8px;
+  }
+
+  textarea:focus, select:focus {
+    outline: 2px solid #667eea;
+    outline-offset: 1px;
+  }
+
+  .translate-btn {
+    width: 100%;
+    padding: 10px;
+    background: #667eea;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 14px;
+  }
+
+  .translate-btn:hover { background: #5568d3; }
+
+  .status {
+    text-align: center;
+    font-size: 12px;
+    color: #888;
+    font-style: italic;
+    margin-top: 10px;
+    min-height: 16px;
+  }
+
+  .status.recording { color: #22c55e; font-weight: 600; }
+  .status.error { color: #ef4444; }
+
+  .pulse {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    background: #22c55e;
+    border-radius: 50%;
+    margin-right: 6px;
+    animation: pulse 1s infinite;
+    vertical-align: middle;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(1.3); }
+  }
+
+  .footer {
+    text-align: center;
+    font-size: 11px;
+    color: #aaa;
+    margin-top: 14px;
+  }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 16px 0;
+    color: #bbb;
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+
+  .divider::before, .divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: #e2e2ea;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🎙️ Speech Translator</h1>
+  <p class="subtitle">Suara → Teks → Terjemahan (100% offline untuk translate)</p>
+
+  <div class="row">
+    <label>Bahasa Sumber:</label>
+    <select id="srcLang">
+      <option value="id-ID">Indonesia</option>
+      <option value="en-US">English (US)</option>
+      <option value="ja-JP">日本語</option>
+      <option value="ar-SA">العربية</option>
+      <option value="zh-CN">中文</option>
+      <option value="es-ES">Español</option>
+      <option value="fr-FR">Français</option>
+      <option value="de-DE">Deutsch</option>
+    </select>
+  </div>
+
+  <div class="row">
+    <label>Terjemahkan ke:</label>
+    <select id="tgtLang">
+      <option value="id">Indonesia</option>
+      <option value="en" selected>English</option>
+      <option value="ja">日本語</option>
+      <option value="ar">العربية</option>
+      <option value="zh">中文</option>
+      <option value="es">Español</option>
+      <option value="fr">Français</option>
+      <option value="de">Deutsch</option>
+    </select>
+  </div>
+
+  <div class="btn-group">
+    <button id="startBtn">🎤 Mulai Rekam</button>
+    <button id="stopBtn" disabled>⏹️ Stop</button>
+  </div>
+
+  <div class="card">
+    <h2>Teks Asli</h2>
+    <div id="sourceText" class="output"></div>
+  </div>
+
+  <div class="card">
+    <h2>Terjemahan</h2>
+    <div id="translatedText" class="output"></div>
+  </div>
+
+  <div class="divider">atau ketik manual</div>
+
+  <textarea id="manualInput" placeholder="Ketik teks di sini lalu klik Terjemahkan…"></textarea>
+  <button class="translate-btn" id="translateManualBtn">🌐 Terjemahkan</button>
+
+  <div class="status" id="status">Siap.</div>
+
+  <div class="footer">Dibuat dengan HTML + CSS + JS murni</div>
+</div>
+
+<script>
+const DICTIONARY = {
+  id: {
+    en: {
+      "selamat pagi": "good morning",
+      "selamat siang": "good afternoon",
+      "selamat malam": "good evening",
+      "terima kasih": "thank you",
+      "sama-sama": "you're welcome",
+      "apa kabar": "how are you",
+      "nama saya": "my name is",
+      "senang bertemu": "nice to meet",
+      "saya": "i",
+      "kamu": "you",
+      "dia": "he",
+      "kita": "we",
+      "makan": "eat",
+      "minum": "drink",
+      "rumah": "house",
+      "sekolah": "school",
+      "buku": "book",
+      "air": "water",
+      "makanan": "food",
+      "tolong": "please",
+      "maaf": "sorry",
+      "ya": "yes",
+      "tidak": "no",
+      "dan": "and",
+      "atau": "or",
+      "dengan": "with",
+      "untuk": "for",
+      "dari": "from",
+      "ke": "to",
+      "di": "in",
+      "ini": "this",
+      "itu": "that",
+      "apa": "what",
+      "siapa": "who",
+      "kapan": "when",
+      "dimana": "where",
+      "mengapa": "why",
+      "bagaimana": "how",
+      "baik": "good",
+      "buruk": "bad",
+      "besar": "big",
+      "kecil": "small",
+      "panas": "hot",
+      "dingin": "cold",
+      "hari": "day",
+      "malam": "night",
+      "pagi": "morning",
+      "siang": "noon",
+      "matahari": "sun",
+      "bulan": "moon",
+      "bintang": "star",
+      "langit": "sky",
+      "bumi": "earth",
+      "ibu": "mother",
+      "ayah": "father",
+      "kakak": "older sibling",
+      "adik": "younger sibling",
+      "teman": "friend",
+      "keluarga": "family",
+      "cinta": "love",
+      "sayang": "love",
+      "senang": "happy",
+      "sedih": "sad",
+      "marah": "angry"
+    },
+    ja: {
+      "selamat pagi": "おはようございます",
+      "selamat siang": "こんにちは",
+      "selamat malam": "こんばんは",
+      "terima kasih": "ありがとうございます",
+      "apa kabar": "お元気ですか",
+      "nama saya": "私の名前は",
+      "saya": "私",
+      "kamu": "あなた",
+      "makan": "食べる",
+      "minum": "飲む",
+      "rumah": "家",
+      "sekolah": "学校",
+      "buku": "本",
+      "air": "水",
+      "makanan": "食べ物",
+      "tolong": "お願いします",
+      "maaf": "ごめんなさい",
+      "ya": "はい",
+      "tidak": "いいえ",
+      "dan": "と",
+      "atau": "または",
+      "ini": "これ",
+      "itu": "それ",
+      "baik": "良い",
+      "buruk": "悪い",
+      "besar": "大きい",
+      "kecil": "小さい",
+      "hari": "日",
+      "malam": "夜",
+      "pagi": "朝",
+      "matahari": "太陽",
+      "bulan": "月",
+      "bintang": "星",
+      "ibu": "母",
+      "ayah": "父",
+      "teman": "友達",
+      "keluarga": "家族",
+      "cinta": "愛"
+    },
+    ar: {
+      "selamat pagi": "صباح الخير",
+      "selamat siang": "مساء الخير",
+      "terima kasih": "شكرا",
+      "apa kabar": "كيف حالك",
+      "nama saya": "اسمي",
+      "saya": "أنا",
+      "kamu": "أنت",
+      "makan": "يأكل",
+      "minum": "يشرب",
+      "rumah": "منزل",
+      "sekolah": "مدرسة",
+      "buku": "كتاب",
+      "air": "ماء",
+      "makanan": "طعام",
+      "tolong": "من فضلك",
+      "maaf": "آسف",
+      "ya": "نعم",
+      "tidak": "لا",
+      "dan": "و",
+      "atau": "أو",
+      "ini": "هذا",
+      "itu": "ذلك",
+      "baik": "جيد",
+      "besar": "كبير",
+      "kecil": "صغير",
+      "ibu": "أم",
+      "ayah": "أب",
+      "teman": "صديق",
+      "keluarga": "عائلة",
+      "cinta": "حب"
+    }
+  },
+  en: {
+    id: {
+      "good morning": "selamat pagi",
+      "good afternoon": "selamat siang",
+      "good evening": "selamat malam",
+      "good night": "selamat malam",
+      "thank you": "terima kasih",
+      "thanks": "terima kasih",
+      "you're welcome": "sama-sama",
+      "how are you": "apa kabar",
+      "my name is": "nama saya",
+      "nice to meet you": "senang bertemu",
+      "i": "saya",
+      "you": "kamu",
+      "he": "dia",
+      "she": "dia",
+      "we": "kita",
+      "they": "mereka",
+      "eat": "makan",
+      "drink": "minum",
+      "house": "rumah",
+      "school": "sekolah",
+      "book": "buku",
+      "water": "air",
+      "food": "makanan",
+      "please": "tolong",
+      "sorry": "maaf",
+      "yes": "ya",
+      "no": "tidak",
+      "and": "dan",
+      "or": "atau",
+      "with": "dengan",
+      "for": "untuk",
+      "from": "dari",
+      "to": "ke",
+      "in": "di",
+      "this": "ini",
+      "that": "itu",
+      "what": "apa",
+      "who": "siapa",
+      "when": "kapan",
+      "where": "dimana",
+      "why": "mengapa",
+      "how": "bagaimana",
+      "good": "baik",
+      "bad": "buruk",
+      "big": "besar",
+      "small": "kecil",
+      "hot": "panas",
+      "cold": "dingin",
+      "day": "hari",
+      "night": "malam",
+      "morning": "pagi",
+      "noon": "siang",
+      "sun": "matahari",
+      "moon": "bulan",
+      "star": "bintang",
+      "sky": "langit",
+      "earth": "bumi",
+      "mother": "ibu",
+      "father": "ayah",
+      "friend": "teman",
+      "family": "keluarga",
+      "love": "cinta",
+      "happy": "senang",
+      "sad": "sedih",
+      "angry": "marah",
+      "hello": "halo",
+      "hi": "hai",
+      "goodbye": "selamat tinggal",
+      "bye": "dadah"
+    },
+    ja: {
+      "good morning": "おはようございます",
+      "thank you": "ありがとうございます",
+      "how are you": "お元気ですか",
+      "i": "私",
+      "you": "あなた",
+      "eat": "食べる",
+      "drink": "飲む",
+      "house": "家",
+      "water": "水",
+      "my name is": "私の名前は",
+      "please": "お願いします",
+      "sorry": "ごめんなさい",
+      "yes": "はい",
+      "no": "いいえ",
+      "hello": "こんにちは",
+      "goodbye": "さようなら"
+    }
+  },
+  ja: {
+    id: {
+      "おはようございます": "selamat pagi",
+      "こんにちは": "halo",
+      "こんばんは": "selamat malam",
+      "ありがとうございます": "terima kasih",
+      "ありがとう": "terima kasih",
+      "お元気ですか": "apa kabar",
+      "私の名前は": "nama saya",
+      "私": "saya",
+      "あなた": "kamu",
+      "食べる": "makan",
+      "飲む": "minum",
+      "家": "rumah",
+      "学校": "sekolah",
+      "本": "buku",
+      "水": "air",
+      "食べ物": "makanan",
+      "お願いします": "tolong",
+      "ごめんなさい": "maaf",
+      "はい": "ya",
+      "いいえ": "tidak",
+      "良い": "baik",
+      "悪い": "buruk",
+      "大きい": "besar",
+      "小さい": "kecil",
+      "日": "hari",
+      "夜": "malam",
+      "朝": "pagi",
+      "太陽": "matahari",
+      "月": "bulan",
+      "星": "bintang",
+      "母": "ibu",
+      "父": "ayah",
+      "友達": "teman",
+      "家族": "keluarga",
+      "愛": "cinta",
+      "さようなら": "selamat tinggal"
+    },
+    en: {
+      "おはようございます": "good morning",
+      "こんにちは": "hello",
+      "こんばんは": "good evening",
+      "ありがとうございます": "thank you",
+      "お元気ですか": "how are you",
+      "私の名前は": "my name is",
+      "私": "i",
+      "あなた": "you",
+      "食べる": "eat",
+      "飲む": "drink",
+      "家": "house",
+      "学校": "school",
+      "本": "book",
+      "水": "water",
+      "食べ物": "food",
+      "お願いします": "please",
+      "ごめんなさい": "sorry",
+      "はい": "yes",
+      "いいえ": "no",
+      "さようなら": "goodbye"
+    }
+  }
+};
+
+let recognition = null;
+let isRecording = false;
+
+const startBtn           = document.getElementById("startBtn");
+const stopBtn            = document.getElementById("stopBtn");
+const srcLang            = document.getElementById("srcLang");
+const tgtLang            = document.getElementById("tgtLang");
+const sourceTextEl       = document.getElementById("sourceText");
+const translatedTextEl   = document.getElementById("translatedText");
+const manualInput        = document.getElementById("manualInput");
+const translateManualBtn = document.getElementById("translateManualBtn");
+const statusEl           = document.getElementById("status");
+
+function translateLocal(text, src, tgt) {
+  const srcCode = src.split("-")[0].toLowerCase();
+  const tgtCode = tgt.split("-")[0].toLowerCase();
+
+  if (srcCode === tgtCode) return text;
+
+  const dict = DICTIONARY[srcCode] && DICTIONARY[srcCode][tgtCode];
+  if (!dict) {
+    return "[Terjemahan " + srcCode.toUpperCase() + " → " + tgtCode.toUpperCase() +
+           " belum ada dalam kamus lokal]";
+  }
+
+  let result = text;
+  const phrases = Object.keys(dict).sort((a, b) => b.length - a.length);
+  for (const phrase of phrases) {
+    if (result.toLowerCase().includes(phrase.toLowerCase())) {
+      const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(escaped, "gi");
+      result = result.replace(regex, dict[phrase]);
+    }
+  }
+
+  const words = result.split(/\s+/).map(w => {
+    const clean = w.toLowerCase().replace(/[.,!?;:]/g, "");
+    return dict[clean] || w;
+  });
+
+  return words.join(" ");
+}
+
+function createRecognition(lang) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    setStatus("❌ Browser tidak mendukung Web Speech API. Coba Chrome/Edge terbaru.", "error");
+    return null;
+  }
+
+  const rec = new SR();
+  rec.lang = lang;
+  rec.continuous = true;
+  rec.interimResults = true;
+
+  rec.onresult = (event) => {
+    let finalText = "";
+    let interimText = "";
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const res = event.results[i];
+      if (res.isFinal) finalText += res[0].transcript;
+      else interimText += res[0].transcript;
+    }
+
+    if (finalText) {
+      sourceTextEl.textContent = finalText.trim();
+      const translated = translateLocal(finalText.trim(), srcLang.value, tgtLang.value);
+      translatedTextEl.textContent = translated;
+    } else if (interimText) {
+      sourceTextEl.textContent = interimText + " …";
+    }
+  };
+
+  rec.onerror = (e) => {
+    if (e.error === "not-allowed") {
+      setStatus("❌ Izin mikrofon ditolak. Klik ikon 🔒 di address bar untuk mengizinkan.", "error");
+    } else {
+      setStatus("❌ Error: " + e.error, "error");
+    }
+  };
+
+  rec.onend = () => {
+    if (isRecording) {
+      try { rec.start(); } catch (_) {}
+    }
+  };
+
+  return rec;
+}
+
+function setStatus(msg, type = "") {
+  statusEl.className = "status " + type;
+  if (type === "recording") {
+    statusEl.innerHTML = '<span class="pulse"></span>' + msg;
+  } else {
+    statusEl.textContent = msg;
+  }
+}
+
+startBtn.addEventListener("click", () => {
+  if (isRecording) return;
+  recognition = createRecognition(srcLang.value);
+  if (!recognition) return;
+
+  try {
+    recognition.start();
+    isRecording = true;
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    setStatus("Mendengarkan…", "recording");
+  } catch (err) {
+    setStatus("Gagal mulai: " + err.message, "error");
+  }
+});
+
+stopBtn.addEventListener("click", () => {
+  if (recognition) recognition.stop();
+  isRecording = false;
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+  setStatus("Dihentikan.");
+});
+
+translateManualBtn.addEventListener("click", () => {
+  const text = manualInput.value.trim();
+  if (!text) {
+    setStatus("⚠️ Ketik sesuatu dulu.", "error");
+    return;
+  }
+  sourceTextEl.textContent = text;
+  const translated = translateLocal(text, srcLang.value, tgtLang.value);
+  translatedTextEl.textContent = translated;
+  setStatus("✅ Diterjemahkan secara lokal.");
+});
+
+try {
+  const savedSrc = localStorage.getItem("srcLang");
+  const savedTgt = localStorage.getItem("tgtLang");
+  if (savedSrc) srcLang.value = savedSrc;
+  if (savedTgt) tgtLang.value = savedTgt;
+} catch (_) {}
+
+[srcLang, tgtLang].forEach(sel => {
+  sel.addEventListener("change", () => {
+    try {
+      localStorage.setItem("srcLang", srcLang.value);
+      localStorage.setItem("tgtLang", tgtLang.value);
+    } catch (_) {}
+  });
+});
+</script>
+</body>
+</html>
